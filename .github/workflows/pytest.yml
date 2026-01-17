@@ -438,20 +438,41 @@ jobs:
           echo "=== Environment variables ==="
           echo "PP=$PP"
           echo "FPCDIR=$FPCDIR"
-          echo ""
-          echo "=== FPC version ==="
-          fpc -v || echo "FPC not in PATH, trying PP directly"
-          echo ""
-          echo "=== Test FPC compilation ==="
+
           # Create a simple test program
-          echo "program test; begin writeln('Hello'); end." > /tmp/test.pas
-          fpc /tmp/test.pas -o/tmp/test 2>&1 || echo "FPC compilation test failed"
-          if [[ -f /tmp/test ]] || [[ -f /tmp/test.exe ]]; then
-            echo "FPC compilation test passed"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            TEST_PAS="$TEMP/fpc_test.pas"
+            TEST_OUT="$TEMP/fpc_test"
+          else
+            TEST_PAS="/tmp/fpc_test.pas"
+            TEST_OUT="/tmp/fpc_test"
           fi
-          echo ""
-          echo "=== FPC configuration ==="
-          fpc -vt 2>&1 | head -20 || echo "Could not get FPC search paths"
+          echo "program fpc_test; begin writeln('FPC works'); end." > "$TEST_PAS"
+
+          # Compile using PP (the compiler we actually use in tests)
+          echo "=== Compiling test program with PP=$PP ==="
+          if [[ -n "$PP" ]]; then
+            "$PP" "$TEST_PAS" -o"$TEST_OUT" 2>&1
+          else
+            echo "ERROR: PP environment variable is not set"
+            exit 1
+          fi
+
+          # Verify output binary exists
+          if [[ -f "$TEST_OUT" ]] || [[ -f "${TEST_OUT}.exe" ]]; then
+            echo "FPC compilation test PASSED"
+          else
+            echo "ERROR: FPC compilation failed - no output binary at $TEST_OUT"
+            exit 1
+          fi
+
+          # Verify FPCDIR exists (required for pasls)
+          if [[ -d "$FPCDIR" ]]; then
+            echo "FPCDIR exists: $FPCDIR"
+          else
+            echo "ERROR: FPCDIR does not exist: $FPCDIR"
+            exit 1
+          fi
       - name: Cache language servers
         id: cache-language-servers
         uses: actions/cache@v3
